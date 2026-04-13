@@ -64,4 +64,25 @@ public class DishLibraryController {
         dishLibraryService.delete(userId, id);
         return ApiResponse.success();
     }
+
+    /**
+     * PUT /api/v1/dish-library/{id}/image
+     * Body: { "imageUrl": "https://..." }
+     * 更新菜品图片
+     */
+    @PutMapping("/{id}/image")
+    public ApiResponse<DishLibrary> updateImage(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        return ApiResponse.success(dishLibraryService.updateImage(id, body.get("imageUrl")));
+    }
+
+    /**
+     * DELETE /api/v1/dish-library/{id}/image
+     * 删除菜品图片
+     */
+    @DeleteMapping("/{id}/image")
+    public ApiResponse<DishLibrary> clearImage(@PathVariable Long id) {
+        return ApiResponse.success(dishLibraryService.clearImage(id));
+    }
 }

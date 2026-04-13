@@ -76,9 +76,16 @@ public class DishLibraryService {
     }
 
     /**
-     * 新增自定义菜品
+     * 新增自定义菜品（名称去重：系统库和用户库均不允许重名）
      */
     public DishLibrary add(Long userId, String name, String mealType) {
+        long count = dishLibraryMapper.selectCount(
+            new LambdaQueryWrapper<DishLibrary>()
+                .in(DishLibrary::getUserId, 0L, userId)
+                .eq(DishLibrary::getName, name)
+        );
+        if (count > 0) throw new RuntimeException("菜品已存在: " + name);
+
         DishLibrary dish = new DishLibrary();
         dish.setUserId(userId);
         dish.setName(name);
@@ -97,5 +104,27 @@ public class DishLibraryService {
                 .eq(DishLibrary::getId, id)
                 .eq(DishLibrary::getUserId, userId)
         );
+    }
+
+    /**
+     * 更新菜品图片
+     */
+    public DishLibrary updateImage(Long id, String imageUrl) {
+        DishLibrary dish = dishLibraryMapper.selectById(id);
+        if (dish == null) throw new RuntimeException("菜品不存在: " + id);
+        dish.setImageUrl(imageUrl);
+        dishLibraryMapper.updateById(dish);
+        return dish;
+    }
+
+    /**
+     * 删除菜品图片
+     */
+    public DishLibrary clearImage(Long id) {
+        DishLibrary dish = dishLibraryMapper.selectById(id);
+        if (dish == null) throw new RuntimeException("菜品不存在: " + id);
+        dish.setImageUrl(null);
+        dishLibraryMapper.updateById(dish);
+        return dish;
     }
 }
