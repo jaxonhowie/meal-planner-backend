@@ -29,6 +29,7 @@ public class MealPlanService {
     private final MealPlanMapper mealPlanMapper;
     private final MealRecordMapper mealRecordMapper;
     private final PlanDishMapper planDishMapper;
+    private final DishLibraryService dishLibraryService;
 
     /**
      * 查询指定用户某日的菜单
@@ -54,7 +55,6 @@ public class MealPlanService {
             ? List.of("breakfast", "lunch", "dinner")
             : List.of("dinner");
 
-        List<MealPlan> created = new ArrayList<>();
         for (String meal : meals) {
             MealPlan plan = new MealPlan();
             plan.setUserId(userId);
@@ -63,7 +63,8 @@ public class MealPlanService {
             plan.setStatus("planned");
             try {
                 mealPlanMapper.insert(plan);
-                created.add(plan);
+                // 从菜库随机取 1-2 道菜自动填充
+                autoFillDishes(plan, userId, meal);
             } catch (DuplicateKeyException e) {
                 log.debug("Plan already exists for userId={} date={} meal={}", userId, date, meal);
             }
@@ -111,7 +112,7 @@ public class MealPlanService {
     }
 
     /**
-     * 新增打卡记录
+     * 新增打卡记录，并将本餐菜品同步到菜库（打卡次数+1）
      */
     @Transactional
     public MealRecord addRecord(Long planId, Long userId, String description, Integer rating, String imageUrl) {
@@ -125,6 +126,14 @@ public class MealPlanService {
         record.setRating(rating != null ? rating : 3);
         record.setImageUrl(imageUrl);
         mealRecordMapper.insert(record);
+
+        // 同步菜品到菜库：打卡次数+1，有图片时顺带更新示例图
+        List<PlanDish> dishes = planDishMapper.selectList(
+            new LambdaQueryWrapper<PlanDish>().eq(PlanDish::getPlanId, planId)
+        );
+        for (PlanDish dish : dishes) {
+            dishLibraryService.recordCheckin(userId, dish.getDishName(), plan.getMealType(), imageUrl);
+        }
 
         // 同步更新计划状态为 done
         plan.setStatus("done");
@@ -165,6 +174,21 @@ public class MealPlanService {
         Map<Long, List<PlanDish>> dishMap = allDishes.stream()
             .collect(Collectors.groupingBy(PlanDish::getPlanId));
         plans.forEach(p -> p.setDishes(dishMap.getOrDefault(p.getId(), List.of())));
+    }
+
+    /**
+     * 从菜库随机取菜填充到计划（早餐1道，午/晚餐2道）
+     */
+    private void autoFillDishes(MealPlan plan, Long userId, String mealType) {
+        int count = "breakfast".equals(mealType) ? 1 : 2;
+        List<String> names = dishLibraryService.random(userId, mealType, count);
+        for (int i = 0; i < names.size(); i++) {
+            PlanDish dish = new PlanDish();
+            dish.setPlanId(plan.getId());
+            dish.setDishName(names.get(i));
+            dish.setSortOrder(i);
+            planDishMapper.insert(dish);
+        }
     }
 
     /**

@@ -1,10 +1,12 @@
 package com.mealplanner.controller;
 
 import com.mealplanner.dto.ApiResponse;
+import com.mealplanner.dto.StatsResponse;
 import com.mealplanner.dto.UpdateDishesRequest;
 import com.mealplanner.entity.MealPlan;
 import com.mealplanner.entity.MealRecord;
 import com.mealplanner.service.MealPlanService;
+import com.mealplanner.service.StatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +22,7 @@ import java.util.Map;
 public class MealPlanController {
 
     private final MealPlanService mealPlanService;
+    private final StatsService statsService;
 
     /**
      * GET /api/v1/meal/today?userId=1
@@ -98,5 +101,14 @@ public class MealPlanController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         LocalDate target = date != null ? date : LocalDate.now();
         return ApiResponse.success(mealPlanService.getRecords(userId, target));
+    }
+
+    /**
+     * GET /api/v1/stats?userId=1
+     * 用户整体统计
+     */
+    @GetMapping("/stats")
+    public ApiResponse<StatsResponse> getStats(@RequestParam Long userId) {
+        return ApiResponse.success(statsService.getStats(userId));
     }
 }
