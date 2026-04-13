@@ -1,7 +1,4 @@
--- MealPlanner 数据库初始化脚本
--- 执行前请先创建数据库: CREATE DATABASE meal_planner DEFAULT CHARACTER SET utf8mb4;
-
-USE meal_planner;
+-- MealPlanner 数据库初始化脚本（幂等，安全重复执行）
 
 -- 用户表
 CREATE TABLE IF NOT EXISTS `user` (
