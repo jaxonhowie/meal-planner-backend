@@ -49,10 +49,11 @@
             <version>3.0.4</version>
         </dependency>
 
-        <!-- MySQL -->
+        <!-- MySQL 9.x 驱动，兼容 Railway MySQL 9.4 -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
+            <version>9.1.0</version>
             <scope>runtime</scope>
         </dependency>
 
