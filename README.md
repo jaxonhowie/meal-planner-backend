@@ -1,8 +1,8 @@
 ---
 title: Meal Planner API
 emoji: 🍽️
-colorFrom: orange
-colorTo: red
+colorFrom: red
+colorTo: yellow
 sdk: docker
 app_port: 8080
 pinned: false
