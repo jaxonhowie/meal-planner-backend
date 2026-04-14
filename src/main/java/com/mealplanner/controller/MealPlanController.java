@@ -54,6 +54,14 @@ public class MealPlanController {
         return ApiResponse.success(mealPlanService.generateDailyPlan(familyId(), uid(), date));
     }
 
+    @PostMapping("/meal/add-single")
+    public ApiResponse<MealPlan> addSingle(@RequestBody Map<String, String> body) {
+        LocalDate date = body.containsKey("date")
+            ? LocalDate.parse(body.get("date")) : LocalDate.now();
+        String mealType = body.get("mealType");
+        return ApiResponse.success(mealPlanService.createSinglePlan(familyId(), uid(), date, mealType));
+    }
+
     @PutMapping("/meal/{id}/dishes")
     public ApiResponse<MealPlan> updateDishes(
             @PathVariable Long id,

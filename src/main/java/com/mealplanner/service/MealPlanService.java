@@ -64,20 +64,55 @@ public class MealPlanService {
               .stream().map(PlanDish::getDishName).collect(Collectors.toSet());
 
         for (String meal : meals) {
-            MealPlan plan = new MealPlan();
-            plan.setFamilyId(familyId);
-            plan.setUserId(userId);
-            plan.setDate(date);
-            plan.setMealType(meal);
-            plan.setStatus("planned");
-            try {
+            MealPlan existing = mealPlanMapper.selectOne(
+                new LambdaQueryWrapper<MealPlan>()
+                    .eq(MealPlan::getFamilyId, familyId)
+                    .eq(MealPlan::getDate, date)
+                    .eq(MealPlan::getMealType, meal)
+            );
+            if (existing != null) {
+                // 已打卡：保留不动
+                if ("done".equals(existing.getStatus())) continue;
+                // 未打卡：清空旧菜品，重新推荐
+                planDishMapper.delete(
+                    new LambdaQueryWrapper<PlanDish>().eq(PlanDish::getPlanId, existing.getId())
+                );
+                autoFillDishes(existing, familyId, meal, excludeNames);
+            } else {
+                MealPlan plan = new MealPlan();
+                plan.setFamilyId(familyId);
+                plan.setUserId(userId);
+                plan.setDate(date);
+                plan.setMealType(meal);
+                plan.setStatus("planned");
                 mealPlanMapper.insert(plan);
                 autoFillDishes(plan, familyId, meal, excludeNames);
-            } catch (DuplicateKeyException e) {
-                log.debug("Plan exists: familyId={} date={} meal={}", familyId, date, meal);
             }
         }
         return getDailyPlan(familyId, date);
+    }
+
+    /** 手动创建单餐空计划（无初始菜品，幂等：已存在则直接返回） */
+    @Transactional
+    public MealPlan createSinglePlan(Long familyId, Long userId, LocalDate date, String mealType) {
+        MealPlan plan = new MealPlan();
+        plan.setFamilyId(familyId);
+        plan.setUserId(userId);
+        plan.setDate(date);
+        plan.setMealType(mealType);
+        plan.setStatus("planned");
+        try {
+            mealPlanMapper.insert(plan);
+        } catch (DuplicateKeyException e) {
+            plan = mealPlanMapper.selectOne(
+                new LambdaQueryWrapper<MealPlan>()
+                    .eq(MealPlan::getFamilyId, familyId)
+                    .eq(MealPlan::getDate, date)
+                    .eq(MealPlan::getMealType, mealType)
+            );
+        }
+        attachDishes(List.of(plan));
+        return plan;
     }
 
     /** 更新计划关联的菜品列表（先删后增） */
