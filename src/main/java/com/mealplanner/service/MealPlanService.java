@@ -44,13 +44,17 @@ public class MealPlanService {
         return plans;
     }
 
-    /** 生成当日菜单（工作日仅晚餐，周末三餐） */
+    /** 生成当日菜单
+     *  - 三餐均创建计划（保证所有卡片可编辑）
+     *  - 工作日仅对晚餐自动填充菜品，早/午餐创建空计划
+     *  - 周末三餐均自动填充菜品
+     *  - 已打卡（done）的餐次保持不动
+     *  - 未打卡的已有计划：清空旧菜品后重新推荐
+     */
     @Transactional
     public List<MealPlan> generateDailyPlan(Long familyId, Long userId, LocalDate date) {
         DayOfWeek dow = date.getDayOfWeek();
-        List<String> meals = (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY)
-            ? List.of("breakfast", "lunch", "dinner")
-            : List.of("dinner");
+        boolean isWeekend = dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY;
 
         // 查询近7天已出现的菜品名，推荐时排除
         List<Long> recentPlanIds = mealPlanMapper.selectList(
@@ -63,7 +67,10 @@ public class MealPlanService {
                 .in(PlanDish::getPlanId, recentPlanIds))
               .stream().map(PlanDish::getDishName).collect(Collectors.toSet());
 
-        for (String meal : meals) {
+        for (String meal : List.of("breakfast", "lunch", "dinner")) {
+            // 工作日早/午餐：只建空计划，不自动填菜
+            boolean autoFill = isWeekend || "dinner".equals(meal);
+
             MealPlan existing = mealPlanMapper.selectOne(
                 new LambdaQueryWrapper<MealPlan>()
                     .eq(MealPlan::getFamilyId, familyId)
@@ -73,11 +80,13 @@ public class MealPlanService {
             if (existing != null) {
                 // 已打卡：保留不动
                 if ("done".equals(existing.getStatus())) continue;
-                // 未打卡：清空旧菜品，重新推荐
-                planDishMapper.delete(
-                    new LambdaQueryWrapper<PlanDish>().eq(PlanDish::getPlanId, existing.getId())
-                );
-                autoFillDishes(existing, familyId, meal, excludeNames);
+                // 未打卡：仅在需要自动填充时重新生成菜品
+                if (autoFill) {
+                    planDishMapper.delete(
+                        new LambdaQueryWrapper<PlanDish>().eq(PlanDish::getPlanId, existing.getId())
+                    );
+                    autoFillDishes(existing, familyId, meal, excludeNames);
+                }
             } else {
                 MealPlan plan = new MealPlan();
                 plan.setFamilyId(familyId);
@@ -86,7 +95,9 @@ public class MealPlanService {
                 plan.setMealType(meal);
                 plan.setStatus("planned");
                 mealPlanMapper.insert(plan);
-                autoFillDishes(plan, familyId, meal, excludeNames);
+                if (autoFill) {
+                    autoFillDishes(plan, familyId, meal, excludeNames);
+                }
             }
         }
         return getDailyPlan(familyId, date);
