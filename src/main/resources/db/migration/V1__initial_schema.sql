@@ -1,17 +1,8 @@
--- ⚠️  此文件已弃用，仅作参考文档保留。
--- 数据库 schema 管理已迁移至 Flyway，入口在 db/migration/ 目录。
--- 如需手动重建数据库，请使用 db/migration/V1__initial_schema.sql。
--- 原始脚本（含 DROP TABLE）保留如下，切勿在生产环境执行：
-
-DROP TABLE IF EXISTS `meal_record`;
-DROP TABLE IF EXISTS `plan_dish`;
-DROP TABLE IF EXISTS `dish_library`;
-DROP TABLE IF EXISTS `meal_plan`;
-DROP TABLE IF EXISTS `user`;
-DROP TABLE IF EXISTS `family`;
+-- V1: 初始化完整 schema（含 tags 列）
+-- Flyway 保证此脚本只执行一次；不包含任何 DROP 语句
 
 -- 家庭表
-CREATE TABLE `family` (
+CREATE TABLE IF NOT EXISTS `family` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '家庭ID',
   `name`        VARCHAR(100) NOT NULL                COMMENT '家庭名称',
   `invite_code` VARCHAR(10)  NOT NULL                COMMENT '邀请码（8位）',
@@ -21,7 +12,7 @@ CREATE TABLE `family` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='家庭表';
 
 -- 用户表
-CREATE TABLE `user` (
+CREATE TABLE IF NOT EXISTS `user` (
   `id`         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '用户ID',
   `username`   VARCHAR(50)  NOT NULL                COMMENT '用户名',
   `password`   VARCHAR(100) NOT NULL                COMMENT '密码（BCrypt加密）',
@@ -34,7 +25,7 @@ CREATE TABLE `user` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
 
 -- 每日餐食计划
-CREATE TABLE `meal_plan` (
+CREATE TABLE IF NOT EXISTS `meal_plan` (
   `id`         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '计划ID',
   `family_id`  BIGINT       NOT NULL                COMMENT '家庭ID',
   `user_id`    BIGINT       NOT NULL                COMMENT '创建人ID',
@@ -48,7 +39,7 @@ CREATE TABLE `meal_plan` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日餐食计划';
 
 -- 计划菜品（与 meal_plan 一对多）
-CREATE TABLE `plan_dish` (
+CREATE TABLE IF NOT EXISTS `plan_dish` (
   `id`         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '菜品ID',
   `plan_id`    BIGINT       NOT NULL                COMMENT '关联计划ID',
   `dish_name`  VARCHAR(200) NOT NULL                COMMENT '菜名',
@@ -60,7 +51,7 @@ CREATE TABLE `plan_dish` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='计划菜品';
 
 -- 打卡记录
-CREATE TABLE `meal_record` (
+CREATE TABLE IF NOT EXISTS `meal_record` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '记录ID',
   `plan_id`     BIGINT       NOT NULL                COMMENT '关联计划ID',
   `user_id`     BIGINT       NOT NULL                COMMENT '打卡人ID',
@@ -74,7 +65,7 @@ CREATE TABLE `meal_record` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='打卡记录';
 
 -- 菜品库（user_id=0 表示系统预设）
-CREATE TABLE `dish_library` (
+CREATE TABLE IF NOT EXISTS `dish_library` (
   `id`            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '菜品ID',
   `user_id`       BIGINT       NOT NULL DEFAULT 0     COMMENT '用户ID，0=系统预设',
   `name`          VARCHAR(200) NOT NULL                COMMENT '菜名',
@@ -87,7 +78,7 @@ CREATE TABLE `dish_library` (
   KEY `idx_user_meal_type` (`user_id`, `meal_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='菜品库';
 
--- 预设菜品
+-- 系统预设菜品（INSERT IGNORE：已存在则跳过，不重复插入）
 INSERT IGNORE INTO `dish_library` (id, user_id, name, meal_type, tags) VALUES
 -- 早餐
 (1,  0, '豆浆油条',     'breakfast', '素'),

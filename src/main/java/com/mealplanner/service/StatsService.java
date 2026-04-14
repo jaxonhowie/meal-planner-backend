@@ -17,6 +17,7 @@ public class StatsService {
         stats.setTotalDishKinds(statsMapper.countDishKinds(userId));
         stats.setTopByRating(statsMapper.topByRating(userId));
         stats.setTopByFrequency(statsMapper.topByFrequency(userId));
+        stats.setCheckinTrend(statsMapper.checkinTrendLast30Days(userId));
         return stats;
     }
 }

@@ -5,10 +5,13 @@ import com.mealplanner.dto.StatsResponse;
 import com.mealplanner.dto.UpdateDishesRequest;
 import com.mealplanner.entity.MealPlan;
 import com.mealplanner.entity.MealRecord;
+import com.mealplanner.entity.User;
+import com.mealplanner.mapper.UserMapper;
 import com.mealplanner.service.MealPlanService;
 import com.mealplanner.service.StatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -23,39 +26,34 @@ public class MealPlanController {
 
     private final MealPlanService mealPlanService;
     private final StatsService statsService;
+    private final UserMapper userMapper;
 
-    /**
-     * GET /api/v1/meal/today?userId=1
-     * 查询今日菜单
-     */
+    private Long uid() {
+        return (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
+
+    private Long familyId() {
+        User user = userMapper.selectById(uid());
+        if (user == null || user.getFamilyId() == null)
+            throw new RuntimeException("请先加入或创建家庭");
+        return user.getFamilyId();
+    }
+
     @GetMapping("/meal/today")
     public ApiResponse<List<MealPlan>> getToday(
-            @RequestParam Long userId,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         LocalDate target = date != null ? date : LocalDate.now();
-        return ApiResponse.success(mealPlanService.getDailyPlan(userId, target));
+        return ApiResponse.success(mealPlanService.getDailyPlan(familyId(), target));
     }
 
-    /**
-     * POST /api/v1/meal/generate
-     * Body: { "userId": 1, "date": "2026-04-10" }
-     * 生成今日菜单
-     */
     @PostMapping("/meal/generate")
     public ApiResponse<List<MealPlan>> generate(@RequestBody Map<String, String> body) {
-        Long userId = Long.parseLong(body.get("userId"));
         LocalDate date = body.containsKey("date")
-            ? LocalDate.parse(body.get("date"))
-            : LocalDate.now();
-        return ApiResponse.success(mealPlanService.generateDailyPlan(userId, date));
+            ? LocalDate.parse(body.get("date")) : LocalDate.now();
+        return ApiResponse.success(mealPlanService.generateDailyPlan(familyId(), uid(), date));
     }
 
-    /**
-     * PUT /api/v1/meal/{id}/dishes
-     * Body: { "dishes": [{"dishName":"红烧肉","remark":"少放油"}, ...] }
-     * 更新计划菜品
-     */
     @PutMapping("/meal/{id}/dishes")
     public ApiResponse<MealPlan> updateDishes(
             @PathVariable Long id,
@@ -63,11 +61,6 @@ public class MealPlanController {
         return ApiResponse.success(mealPlanService.updateDishes(id, request.getDishes()));
     }
 
-    /**
-     * PUT /api/v1/meal/{id}/status
-     * Body: { "status": "done" }
-     * 更新状态
-     */
     @PutMapping("/meal/{id}/status")
     public ApiResponse<MealPlan> updateStatus(
             @PathVariable Long id,
@@ -75,40 +68,40 @@ public class MealPlanController {
         return ApiResponse.success(mealPlanService.updateStatus(id, body.get("status")));
     }
 
-    /**
-     * POST /api/v1/record
-     * Body: { "planId":1, "userId":1, "description":"...", "rating":5, "imageUrl":"..." }
-     * 新增打卡记录
-     */
     @PostMapping("/record")
     public ApiResponse<MealRecord> addRecord(@RequestBody Map<String, Object> body) {
-        Long planId     = Long.parseLong(body.get("planId").toString());
-        Long userId     = Long.parseLong(body.get("userId").toString());
-        String desc     = (String) body.getOrDefault("description", "");
-        Integer rating  = body.containsKey("rating") ? Integer.parseInt(body.get("rating").toString()) : 3;
+        Long planId  = Long.parseLong(body.get("planId").toString());
+        String desc  = (String) body.getOrDefault("description", "");
+        Integer rating = body.containsKey("rating")
+            ? Integer.parseInt(body.get("rating").toString()) : 3;
         String imageUrl = (String) body.getOrDefault("imageUrl", null);
-        return ApiResponse.success(mealPlanService.addRecord(planId, userId, desc, rating, imageUrl));
+        return ApiResponse.success(mealPlanService.addRecord(planId, uid(), desc, rating, imageUrl));
     }
 
-    /**
-     * GET /api/v1/record?userId=1&date=2026-04-10
-     * 查询打卡记录
-     */
     @GetMapping("/record")
     public ApiResponse<List<MealRecord>> getRecords(
-            @RequestParam Long userId,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         LocalDate target = date != null ? date : LocalDate.now();
-        return ApiResponse.success(mealPlanService.getRecords(userId, target));
+        return ApiResponse.success(mealPlanService.getRecords(familyId(), target));
     }
 
-    /**
-     * GET /api/v1/stats?userId=1
-     * 用户整体统计
-     */
+    @GetMapping("/record/range")
+    public ApiResponse<List<MealRecord>> getRecordsRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+        return ApiResponse.success(mealPlanService.getRecordsForRange(familyId(), start, end));
+    }
+
+    @GetMapping("/meal/week")
+    public ApiResponse<List<MealPlan>> getWeek(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+        return ApiResponse.success(mealPlanService.getWeeklyPlans(familyId(), start, end));
+    }
+
     @GetMapping("/stats")
-    public ApiResponse<StatsResponse> getStats(@RequestParam Long userId) {
-        return ApiResponse.success(statsService.getStats(userId));
+    public ApiResponse<StatsResponse> getStats() {
+        return ApiResponse.success(statsService.getStats(uid()));
     }
 }

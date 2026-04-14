@@ -1,5 +1,6 @@
 package com.mealplanner.mapper;
 
+import com.mealplanner.dto.DayCount;
 import com.mealplanner.dto.DishStat;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -39,4 +40,15 @@ public interface StatsMapper {
             "ORDER BY checkin_count DESC " +
             "LIMIT 5")
     List<DishStat> topByFrequency(@Param("userId") Long userId);
+
+    /**
+     * 近30天每日打卡次数（稀疏：无打卡的日期不返回）
+     */
+    @Select("SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS date, COUNT(*) AS count " +
+            "FROM meal_record " +
+            "WHERE user_id = #{userId} " +
+            "  AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) " +
+            "GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d') " +
+            "ORDER BY date ASC")
+    List<DayCount> checkinTrendLast30Days(@Param("userId") Long userId);
 }

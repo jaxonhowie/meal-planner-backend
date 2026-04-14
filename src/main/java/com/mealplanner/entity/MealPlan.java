@@ -14,6 +14,10 @@ public class MealPlan {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 归属家庭（家庭共享菜单） */
+    private Long familyId;
+
+    /** 创建人 */
     private Long userId;
 
     private LocalDate date;

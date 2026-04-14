@@ -25,6 +25,9 @@ public class DishLibrary {
     /** 打卡次数，用于加权推荐 */
     private Integer checkinCount;
 
+    /** 标签，逗号分隔，如："荤,辣"；null 表示未设置 */
+    private String tags;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }
