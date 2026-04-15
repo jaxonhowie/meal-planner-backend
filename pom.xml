@@ -19,7 +19,7 @@
 
     <properties>
         <java.version>17</java.version>
-        <mybatis-plus.version>3.5.7</mybatis-plus.version>
+        <mybatis-plus.version>3.5.9</mybatis-plus.version>
     </properties>
 
     <dependencies>
@@ -40,13 +40,6 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>${mybatis-plus.version}</version>
-        </dependency>
-
-        <!-- 覆盖 mybatis-spring 版本以兼容 Spring 6.1.x -->
-        <dependency>
-            <groupId>org.mybatis</groupId>
-            <artifactId>mybatis-spring</artifactId>
-            <version>3.0.4</version>
         </dependency>
 
         <!-- MySQL 9.x 驱动，兼容 Railway MySQL 9.4 -->
