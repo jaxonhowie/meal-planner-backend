@@ -3,15 +3,14 @@ server:
   servlet:
     context-path: /
 
-app:
-  base-url: ${APP_BASE_URL:http://localhost:8080}
-
 jwt:
   secret: ${JWT_SECRET:meal-planner-default-secret-key-32bytes!}
   expiry-seconds: ${JWT_EXPIRY:2592000}
 
 upload:
-  dir: ${UPLOAD_DIR:./uploads}
+  # 本地开发：固定存到 user.home/.meal-planner/uploads，无论从哪个目录启动 JVM 都一致
+  # 生产/Docker：通过 UPLOAD_DIR 环境变量覆盖（如 /tmp/uploads）
+  dir: ${UPLOAD_DIR:${user.home}/.meal-planner/uploads}
 
 spring:
   servlet:
