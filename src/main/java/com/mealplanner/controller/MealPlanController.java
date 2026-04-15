@@ -86,6 +86,22 @@ public class MealPlanController {
         return ApiResponse.success(mealPlanService.addRecord(planId, uid(), desc, rating, imageUrl));
     }
 
+    @GetMapping("/record/plan/{planId}")
+    public ApiResponse<List<MealRecord>> getRecordsByPlan(@PathVariable Long planId) {
+        return ApiResponse.success(mealPlanService.getRecordsByPlanId(planId));
+    }
+
+    @PutMapping("/record/{id}")
+    public ApiResponse<MealRecord> updateRecord(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        String desc = (String) body.getOrDefault("description", "");
+        Integer rating = body.containsKey("rating")
+            ? Integer.parseInt(body.get("rating").toString()) : null;
+        String imageUrl = (String) body.getOrDefault("imageUrl", null);
+        return ApiResponse.success(mealPlanService.updateRecord(id, uid(), desc, rating, imageUrl));
+    }
+
     @GetMapping("/record")
     public ApiResponse<List<MealRecord>> getRecords(
             @RequestParam(required = false)

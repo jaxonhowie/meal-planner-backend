@@ -199,6 +199,27 @@ public class MealPlanService {
         return plans;
     }
 
+    /** 查询某计划的打卡记录（最新的在前） */
+    public List<MealRecord> getRecordsByPlanId(Long planId) {
+        return mealRecordMapper.selectList(
+            new LambdaQueryWrapper<MealRecord>()
+                .eq(MealRecord::getPlanId, planId)
+                .orderByDesc(MealRecord::getCreatedAt)
+        );
+    }
+
+    /** 更新打卡记录（评分、描述、图片） */
+    public MealRecord updateRecord(Long id, Long userId, String description, Integer rating, String imageUrl) {
+        MealRecord record = mealRecordMapper.selectById(id);
+        if (record == null) throw new RuntimeException("记录不存在: " + id);
+        if (!record.getUserId().equals(userId)) throw new RuntimeException("无权限修改");
+        record.setDescription(description);
+        record.setRating(rating != null ? rating : record.getRating());
+        record.setImageUrl(imageUrl);
+        mealRecordMapper.updateById(record);
+        return record;
+    }
+
     /** 查询某日打卡记录（家庭所有成员） */
     public List<MealRecord> getRecords(Long familyId, LocalDate date) {
         List<MealPlan> plans = getDailyPlan(familyId, date);
