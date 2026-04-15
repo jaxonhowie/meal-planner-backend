@@ -11,6 +11,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -19,13 +20,21 @@ public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
 
+    /** 静态上传文件完全绕过 Security 过滤链，避免任何认证检查干扰图片加载 */
+    @Bean
+    public org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer webSecurityCustomizer() {
+        return web -> web.ignoring().requestMatchers(
+                new AntPathRequestMatcher("/uploads/**")
+        );
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**", "/uploads/**", "/actuator/health").permitAll()
+                .requestMatchers("/api/v1/auth/**", "/actuator/health").permitAll()
                 .anyRequest().authenticated()
             )
             .exceptionHandling(e -> e

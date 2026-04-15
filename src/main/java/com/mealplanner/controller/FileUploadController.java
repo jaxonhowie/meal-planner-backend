@@ -22,9 +22,6 @@ public class FileUploadController {
     @Value("${upload.dir:./uploads}")
     private String uploadDir;
 
-    @Value("${app.base-url:http://localhost:8080}")
-    private String baseUrl;
-
     @PostMapping("/upload")
     public ApiResponse<Map<String, String>> upload(@RequestParam("file") MultipartFile file) throws IOException {
         if (file.isEmpty()) throw new RuntimeException("文件为空");
@@ -36,6 +33,6 @@ public class FileUploadController {
         String filename = UUID.randomUUID() + "." + ext;
         file.transferTo(dirPath.resolve(filename));
 
-        return ApiResponse.success(Map.of("url", baseUrl + "/uploads/" + filename));
+        return ApiResponse.success(Map.of("url", "/uploads/" + filename));
     }
 }
