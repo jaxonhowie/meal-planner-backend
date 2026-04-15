@@ -32,7 +32,8 @@ public class DishLibraryService {
                     .eq(DishLibrary::getMealType, mealType)
                     .or()
                     .isNull(DishLibrary::getMealType))
-                .orderByAsc(DishLibrary::getId)
+                .orderByDesc(DishLibrary::getUpdatedAt)
+                .orderByDesc(DishLibrary::getId)
         );
     }
 
