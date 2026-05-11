@@ -2,6 +2,7 @@ package com.mealplanner.mapper;
 
 import com.mealplanner.dto.DayCount;
 import com.mealplanner.dto.DishStat;
+import com.mealplanner.dto.FamilyLeaderboardDto.LeaderboardEntry;
 import com.mealplanner.dto.MealTypeCount;
 import com.mealplanner.dto.WeeklyRating;
 import org.apache.ibatis.annotations.Mapper;
@@ -100,4 +101,38 @@ public interface StatsMapper {
             "GROUP BY DATE(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY)) " +
             "ORDER BY MIN(created_at) ASC")
     List<WeeklyRating> ratingTrendLast8Weeks(@Param("userId") Long userId);
+
+    /** 家庭排行榜：按打卡天数排名 */
+    @Select("SELECT mr.user_id AS userId, u.username, u.nickname, " +
+            "  COUNT(DISTINCT DATE(mr.created_at)) AS value " +
+            "FROM meal_record mr " +
+            "JOIN meal_plan mp ON mr.plan_id = mp.id " +
+            "JOIN user u ON mr.user_id = u.id " +
+            "WHERE mp.family_id = #{familyId} " +
+            "GROUP BY mr.user_id, u.username, u.nickname " +
+            "ORDER BY value DESC")
+    List<LeaderboardEntry> familyCheckinDays(@Param("familyId") Long familyId);
+
+    /** 家庭排行榜：按菜品种类排名 */
+    @Select("SELECT mr.user_id AS userId, u.username, u.nickname, " +
+            "  COUNT(DISTINCT pd.dish_name) AS value " +
+            "FROM meal_record mr " +
+            "JOIN meal_plan mp ON mr.plan_id = mp.id " +
+            "JOIN plan_dish pd ON pd.plan_id = mp.id " +
+            "JOIN user u ON mr.user_id = u.id " +
+            "WHERE mp.family_id = #{familyId} " +
+            "GROUP BY mr.user_id, u.username, u.nickname " +
+            "ORDER BY value DESC")
+    List<LeaderboardEntry> familyDishVariety(@Param("familyId") Long familyId);
+
+    /** 家庭排行榜：按平均评分排名 */
+    @Select("SELECT mr.user_id AS userId, u.username, u.nickname, " +
+            "  ROUND(AVG(mr.rating), 1) AS value " +
+            "FROM meal_record mr " +
+            "JOIN meal_plan mp ON mr.plan_id = mp.id " +
+            "JOIN user u ON mr.user_id = u.id " +
+            "WHERE mp.family_id = #{familyId} " +
+            "GROUP BY mr.user_id, u.username, u.nickname " +
+            "ORDER BY value DESC")
+    List<LeaderboardEntry> familyAvgRating(@Param("familyId") Long familyId);
 }

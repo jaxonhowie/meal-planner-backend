@@ -1,5 +1,6 @@
 package com.mealplanner.service;
 
+import com.mealplanner.dto.FamilyLeaderboardDto;
 import com.mealplanner.dto.StatsResponse;
 import com.mealplanner.mapper.StatsMapper;
 import lombok.RequiredArgsConstructor;
@@ -78,5 +79,13 @@ public class StatsService {
         }
 
         return new int[]{current, best};
+    }
+
+    public FamilyLeaderboardDto getFamilyLeaderboard(Long familyId) {
+        FamilyLeaderboardDto dto = new FamilyLeaderboardDto();
+        dto.setByCheckinDays(statsMapper.familyCheckinDays(familyId));
+        dto.setByDishVariety(statsMapper.familyDishVariety(familyId));
+        dto.setByAvgRating(statsMapper.familyAvgRating(familyId));
+        return dto;
     }
 }

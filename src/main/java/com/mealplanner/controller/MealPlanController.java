@@ -1,6 +1,7 @@
 package com.mealplanner.controller;
 
 import com.mealplanner.dto.ApiResponse;
+import com.mealplanner.dto.FamilyLeaderboardDto;
 import com.mealplanner.dto.StatsResponse;
 import com.mealplanner.dto.UpdateDishesRequest;
 import com.mealplanner.entity.MealPlan;
@@ -127,5 +128,10 @@ public class MealPlanController {
     @GetMapping("/stats")
     public ApiResponse<StatsResponse> getStats() {
         return ApiResponse.success(statsService.getStats(uid()));
+    }
+
+    @GetMapping("/stats/family-leaderboard")
+    public ApiResponse<FamilyLeaderboardDto> getFamilyLeaderboard() {
+        return ApiResponse.success(statsService.getFamilyLeaderboard(familyId()));
     }
 }
