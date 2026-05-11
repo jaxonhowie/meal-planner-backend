@@ -31,6 +31,7 @@ public class MealPlanService {
     private final MealRecordMapper mealRecordMapper;
     private final PlanDishMapper planDishMapper;
     private final DishLibraryService dishLibraryService;
+    private final AchievementService achievementService;
 
     /** 查询指定家庭某日的菜单 */
     public List<MealPlan> getDailyPlan(Long familyId, LocalDate date) {
@@ -183,6 +184,14 @@ public class MealPlanService {
 
         plan.setStatus("done");
         mealPlanMapper.updateById(plan);
+
+        // 触发成就解锁检查（非阻塞，失败不影响打卡）
+        try {
+            achievementService.checkAndUnlock(userId);
+        } catch (Exception e) {
+            log.warn("成就检查失败: {}", e.getMessage());
+        }
+
         return record;
     }
 
