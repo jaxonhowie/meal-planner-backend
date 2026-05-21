@@ -156,6 +156,15 @@ public class DishLibraryService {
         return dish;
     }
 
+    /** 切换收藏状态 */
+    public DishLibrary toggleFavorite(Long id) {
+        DishLibrary dish = dishLibraryMapper.selectById(id);
+        if (dish == null) throw new RuntimeException("菜品不存在: " + id);
+        dish.setIsFavorite(!Boolean.TRUE.equals(dish.getIsFavorite()));
+        dishLibraryMapper.updateById(dish);
+        return dish;
+    }
+
     // ── 工具方法 ──────────────────────────────
 
     /** 系统(0) + 家庭成员 userId 列表 */
@@ -179,8 +188,11 @@ public class DishLibraryService {
     private List<String> weightedRandom(List<DishLibrary> candidates, int count) {
         if (candidates.isEmpty()) return List.of();
         return candidates.stream()
-            .sorted(Comparator.comparingDouble(d ->
-                Math.log(ThreadLocalRandom.current().nextDouble()) / (d.getCheckinCount() + 1)))
+            .sorted(Comparator.comparingDouble(d -> {
+                double weight = d.getCheckinCount() + 1;
+                if (Boolean.TRUE.equals(d.getIsFavorite())) weight *= 2;
+                return Math.log(ThreadLocalRandom.current().nextDouble()) / weight;
+            }))
             .limit(count)
             .map(DishLibrary::getName)
             .collect(Collectors.toList());

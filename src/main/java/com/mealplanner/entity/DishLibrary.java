@@ -28,6 +28,9 @@ public class DishLibrary {
     /** 标签，逗号分隔，如："荤,辣"；null 表示未设置 */
     private String tags;
 
+    /** 是否收藏 */
+    private Boolean isFavorite;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

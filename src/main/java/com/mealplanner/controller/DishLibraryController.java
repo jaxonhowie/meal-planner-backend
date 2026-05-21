@@ -65,4 +65,9 @@ public class DishLibraryController {
     public ApiResponse<DishLibrary> clearImage(@PathVariable Long id) {
         return ApiResponse.success(dishLibraryService.clearImage(id));
     }
+
+    @PutMapping("/{id}/favorite")
+    public ApiResponse<DishLibrary> toggleFavorite(@PathVariable Long id) {
+        return ApiResponse.success(dishLibraryService.toggleFavorite(id));
+    }
 }
