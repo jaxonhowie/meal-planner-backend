@@ -7,6 +7,8 @@ import com.mealplanner.entity.UserAchievement;
 import com.mealplanner.mapper.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,7 @@ public class AchievementService {
     private final MealRecordMapper mealRecordMapper;
 
     /** 获取所有成就 + 当前用户的解锁状态和进度 */
+    @Cacheable(value = "userAchievements", key = "#userId")
     public List<AchievementDto> getUserAchievements(Long userId) {
         List<Achievement> all = achievementMapper.selectList(
             new LambdaQueryWrapper<Achievement>().orderByAsc(Achievement::getSortOrder)
@@ -67,6 +70,7 @@ public class AchievementService {
 
     /** 幂等解锁检查，返回新解锁的成就列表 */
     @Transactional
+    @CacheEvict(value = "userAchievements", key = "#userId")
     public List<AchievementDto> checkAndUnlock(Long userId) {
         List<Achievement> all = achievementMapper.selectList(null);
         Set<Long> alreadyUnlocked = userAchievementMapper.selectList(
@@ -176,19 +180,6 @@ public class AchievementService {
     }
 
     private boolean hasAllMealsInOneDay(Long userId) {
-        // Check if any date has records for all 3 meal types
-        List<String> dates = statsMapper.allCheckinDates(userId);
-        for (String date : dates) {
-            java.time.LocalDate d = java.time.LocalDate.parse(date);
-            long count = mealRecordMapper.selectCount(
-                new LambdaQueryWrapper<com.mealplanner.entity.MealRecord>()
-                    .eq(com.mealplanner.entity.MealRecord::getUserId, userId)
-                    .apply("DATE(created_at) = {0}", d)
-            );
-            // If user has 3+ records on one day, likely all 3 meals
-            // More precise: check meal_plan join, but this approximation works since max 3 meals/day
-            if (count >= 3) return true;
-        }
-        return false;
+        return statsMapper.countDaysWithAllMeals(userId) > 0;
     }
 }

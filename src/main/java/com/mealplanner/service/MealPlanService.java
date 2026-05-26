@@ -10,6 +10,7 @@ import com.mealplanner.mapper.MealRecordMapper;
 import com.mealplanner.mapper.PlanDishMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -161,6 +162,7 @@ public class MealPlanService {
 
     /** 新增打卡记录，并将本餐菜品同步到菜库 */
     @Transactional
+    @CacheEvict(value = {"userStats", "userAchievements"}, key = "#userId")
     public MealRecord addRecord(Long planId, Long userId, String description,
                                 Integer rating, String imageUrl) {
         MealPlan plan = mealPlanMapper.selectById(planId);

@@ -4,6 +4,7 @@ import com.mealplanner.dto.FamilyLeaderboardDto;
 import com.mealplanner.dto.StatsResponse;
 import com.mealplanner.mapper.StatsMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -19,6 +20,7 @@ public class StatsService {
 
     private final StatsMapper statsMapper;
 
+    @Cacheable(value = "userStats", key = "#userId")
     public StatsResponse getStats(Long userId) {
         StatsResponse stats = new StatsResponse();
         stats.setTotalCheckins(statsMapper.countCheckins(userId));

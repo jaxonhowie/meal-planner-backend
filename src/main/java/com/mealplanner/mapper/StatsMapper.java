@@ -79,6 +79,18 @@ public interface StatsMapper {
     List<String> allCheckinDates(@Param("userId") Long userId);
 
     /**
+     * 检查是否有某天打卡 3 次以上（三餐全打卡）
+     */
+    @Select("SELECT COUNT(*) FROM (" +
+            "  SELECT DATE(created_at) AS d, COUNT(*) AS cnt " +
+            "  FROM meal_record " +
+            "  WHERE user_id = #{userId} AND deleted = 0 " +
+            "  GROUP BY DATE(created_at) " +
+            "  HAVING cnt >= 3" +
+            ") t")
+    int countDaysWithAllMeals(@Param("userId") Long userId);
+
+    /**
      * 餐次分布（早/午/晚各打卡多少次）
      */
     @Select("SELECT mp.meal_type AS mealType, COUNT(*) AS count " +
