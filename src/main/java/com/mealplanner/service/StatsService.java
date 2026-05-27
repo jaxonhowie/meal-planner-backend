@@ -83,6 +83,7 @@ public class StatsService {
         return new int[]{current, best};
     }
 
+    @Cacheable(value = "familyLeaderboard", key = "#familyId")
     public FamilyLeaderboardDto getFamilyLeaderboard(Long familyId) {
         FamilyLeaderboardDto dto = new FamilyLeaderboardDto();
         dto.setByCheckinDays(statsMapper.familyCheckinDays(familyId));

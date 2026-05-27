@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,7 +69,7 @@ public class AchievementService {
         return result;
     }
 
-    /** 幂等解锁检查，返回新解锁的成就列表 */
+    /** 幂等解锁检查（同步版本，供 Controller 使用，返回新解锁列表） */
     @Transactional
     @CacheEvict(value = "userAchievements", key = "#userId")
     public List<AchievementDto> checkAndUnlock(Long userId) {
@@ -110,6 +111,16 @@ public class AchievementService {
             }
         }
         return newlyUnlocked;
+    }
+
+    /** 异步版本，供打卡流程使用（不阻塞主流程） */
+    @Async("asyncExecutor")
+    public void checkAndUnlockAsync(Long userId) {
+        try {
+            checkAndUnlock(userId);
+        } catch (Exception e) {
+            log.warn("异步成就检查失败: {}", e.getMessage());
+        }
     }
 
     private boolean shouldUnlock(String code, int totalCheckins, int dishKinds,

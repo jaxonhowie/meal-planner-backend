@@ -6,6 +6,8 @@ import com.mealplanner.entity.User;
 import com.mealplanner.mapper.DishLibraryMapper;
 import com.mealplanner.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -23,6 +25,7 @@ public class DishLibraryService {
     /**
      * 查询菜库（系统预设 + 家庭成员自定义）
      */
+    @Cacheable(value = "dishLibrary", key = "T(String).valueOf(#userId).concat(':').concat(#mealType ?: 'all')")
     public List<DishLibrary> listForUser(Long userId, String mealType) {
         List<Long> userIds = familyUserIds(userId);
         return dishLibraryMapper.selectList(
@@ -99,8 +102,55 @@ public class DishLibraryService {
     }
 
     /**
+     * 批量打卡同步菜品到菜库（消除 N+1 查询）
+     * 原来每道菜 2 条 SQL，现在 N 道菜只需 2-3 条 SQL
+     */
+    public void batchRecordCheckin(Long userId, List<String> dishNames, String mealType, String imageUrl) {
+        if (dishNames == null || dishNames.isEmpty()) return;
+
+        // 1. 一次查询所有已存在的菜品
+        List<DishLibrary> existingList = dishLibraryMapper.selectList(
+            new LambdaQueryWrapper<DishLibrary>()
+                .eq(DishLibrary::getUserId, userId)
+                .in(DishLibrary::getName, dishNames)
+        );
+        Map<String, DishLibrary> existingMap = existingList.stream()
+            .collect(Collectors.toMap(DishLibrary::getName, d -> d, (a, b) -> a));
+
+        // 2. 区分更新和新增
+        List<DishLibrary> toUpdate = new ArrayList<>();
+        List<DishLibrary> toInsert = new ArrayList<>();
+        for (String name : dishNames) {
+            DishLibrary existing = existingMap.get(name);
+            if (existing != null) {
+                existing.setCheckinCount(existing.getCheckinCount() + 1);
+                if (imageUrl != null) existing.setImageUrl(imageUrl);
+                toUpdate.add(existing);
+            } else {
+                DishLibrary dish = new DishLibrary();
+                dish.setUserId(userId);
+                dish.setName(name);
+                dish.setMealType(mealType);
+                dish.setCheckinCount(1);
+                dish.setImageUrl(imageUrl);
+                toInsert.add(dish);
+            }
+        }
+
+        // 3. 批量更新
+        for (DishLibrary d : toUpdate) {
+            dishLibraryMapper.updateById(d);
+        }
+        // 4. 批量插入
+        if (!toInsert.isEmpty()) {
+            dishLibraryMapper.insertBatchSomeColumn(toInsert);
+        }
+    }
+
+    /**
      * 新增自定义菜品（名称去重：系统库 + 本人已有的均不允许重名）
      */
+    @CacheEvict(value = "dishLibrary", allEntries = true)
     public DishLibrary add(Long userId, String name, String mealType, String tags) {
         List<Long> userIds = familyUserIds(userId);
         long count = dishLibraryMapper.selectCount(
@@ -121,6 +171,7 @@ public class DishLibraryService {
     }
 
     /** 更新菜品标签 */
+    @CacheEvict(value = "dishLibrary", allEntries = true)
     public DishLibrary updateTags(Long id, String tags) {
         DishLibrary dish = dishLibraryMapper.selectById(id);
         if (dish == null) throw new RuntimeException("菜品不存在: " + id);
@@ -130,6 +181,7 @@ public class DishLibraryService {
     }
 
     /** 删除自定义菜品（只能删自己的） */
+    @CacheEvict(value = "dishLibrary", allEntries = true)
     public void delete(Long userId, Long id) {
         dishLibraryMapper.delete(
             new LambdaQueryWrapper<DishLibrary>()
@@ -139,6 +191,7 @@ public class DishLibraryService {
     }
 
     /** 更新菜品图片 */
+    @CacheEvict(value = "dishLibrary", allEntries = true)
     public DishLibrary updateImage(Long id, String imageUrl) {
         DishLibrary dish = dishLibraryMapper.selectById(id);
         if (dish == null) throw new RuntimeException("菜品不存在: " + id);
@@ -148,6 +201,7 @@ public class DishLibraryService {
     }
 
     /** 删除菜品图片 */
+    @CacheEvict(value = "dishLibrary", allEntries = true)
     public DishLibrary clearImage(Long id) {
         DishLibrary dish = dishLibraryMapper.selectById(id);
         if (dish == null) throw new RuntimeException("菜品不存在: " + id);
@@ -157,6 +211,7 @@ public class DishLibraryService {
     }
 
     /** 切换收藏状态 */
+    @CacheEvict(value = "dishLibrary", allEntries = true)
     public DishLibrary toggleFavorite(Long id) {
         DishLibrary dish = dishLibraryMapper.selectById(id);
         if (dish == null) throw new RuntimeException("菜品不存在: " + id);

@@ -11,12 +11,14 @@ import com.mealplanner.mapper.PlanDishMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,7 @@ public class MealPlanService {
     private final AchievementService achievementService;
 
     /** 查询指定家庭某日的菜单 */
+    @Cacheable(value = "dailyPlan", key = "T(String).valueOf(#familyId).concat(':').concat(#date.toString())")
     public List<MealPlan> getDailyPlan(Long familyId, LocalDate date) {
         List<MealPlan> plans = mealPlanMapper.selectList(
             new LambdaQueryWrapper<MealPlan>()
@@ -54,6 +57,7 @@ public class MealPlanService {
      *  - 未打卡的已有计划：清空旧菜品后重新推荐
      */
     @Transactional
+    @CacheEvict(value = "dailyPlan", key = "T(String).valueOf(#familyId).concat(':').concat(#date.toString())")
     public List<MealPlan> generateDailyPlan(Long familyId, Long userId, LocalDate date) {
         DayOfWeek dow = date.getDayOfWeek();
         boolean isWeekend = dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY;
@@ -69,20 +73,19 @@ public class MealPlanService {
                 .in(PlanDish::getPlanId, recentPlanIds))
               .stream().map(PlanDish::getDishName).collect(Collectors.toSet());
 
-        for (String meal : List.of("breakfast", "lunch", "dinner")) {
-            // 工作日早/午餐：只建空计划，不自动填菜
-            boolean autoFill = isWeekend || "dinner".equals(meal);
+        // 批量查询当日已有的计划（1 条 SQL 替代 3 条 selectOne）
+        Map<String, MealPlan> existingMap = mealPlanMapper.selectList(
+            new LambdaQueryWrapper<MealPlan>()
+                .eq(MealPlan::getFamilyId, familyId)
+                .eq(MealPlan::getDate, date)
+        ).stream().collect(Collectors.toMap(MealPlan::getMealType, p -> p));
 
-            MealPlan existing = mealPlanMapper.selectOne(
-                new LambdaQueryWrapper<MealPlan>()
-                    .eq(MealPlan::getFamilyId, familyId)
-                    .eq(MealPlan::getDate, date)
-                    .eq(MealPlan::getMealType, meal)
-            );
+        for (String meal : List.of("breakfast", "lunch", "dinner")) {
+            boolean autoFill = isWeekend || "dinner".equals(meal);
+            MealPlan existing = existingMap.get(meal);
+
             if (existing != null) {
-                // 已打卡：保留不动
                 if ("done".equals(existing.getStatus())) continue;
-                // 未打卡：仅在需要自动填充时重新生成菜品
                 if (autoFill) {
                     planDishMapper.delete(
                         new LambdaQueryWrapper<PlanDish>().eq(PlanDish::getPlanId, existing.getId())
@@ -130,6 +133,7 @@ public class MealPlanService {
 
     /** 更新计划关联的菜品列表（先删后增） */
     @Transactional
+    @CacheEvict(value = "dailyPlan", allEntries = true)
     public MealPlan updateDishes(Long planId, List<DishItem> dishItems) {
         MealPlan plan = mealPlanMapper.selectById(planId);
         if (plan == null) throw new RuntimeException("计划不存在: " + planId);
@@ -137,20 +141,25 @@ public class MealPlanService {
         planDishMapper.delete(
             new LambdaQueryWrapper<PlanDish>().eq(PlanDish::getPlanId, planId)
         );
-        for (int i = 0; i < dishItems.size(); i++) {
-            DishItem item = dishItems.get(i);
-            PlanDish dish = new PlanDish();
-            dish.setPlanId(planId);
-            dish.setDishName(item.getDishName());
-            dish.setRemark(item.getRemark());
-            dish.setSortOrder(i);
-            planDishMapper.insert(dish);
+        if (!dishItems.isEmpty()) {
+            List<PlanDish> dishes = new ArrayList<>();
+            for (int i = 0; i < dishItems.size(); i++) {
+                DishItem item = dishItems.get(i);
+                PlanDish dish = new PlanDish();
+                dish.setPlanId(planId);
+                dish.setDishName(item.getDishName());
+                dish.setRemark(item.getRemark());
+                dish.setSortOrder(i);
+                dishes.add(dish);
+            }
+            planDishMapper.insertBatchSomeColumn(dishes);
         }
         attachDishes(List.of(plan));
         return plan;
     }
 
     /** 更新计划状态 */
+    @CacheEvict(value = "dailyPlan", allEntries = true)
     public MealPlan updateStatus(Long planId, String status) {
         MealPlan plan = mealPlanMapper.selectById(planId);
         if (plan == null) throw new RuntimeException("计划不存在: " + planId);
@@ -162,7 +171,7 @@ public class MealPlanService {
 
     /** 新增打卡记录，并将本餐菜品同步到菜库 */
     @Transactional
-    @CacheEvict(value = {"userStats", "userAchievements"}, key = "#userId")
+    @CacheEvict(value = {"userStats", "userAchievements", "dailyPlan", "familyLeaderboard"}, allEntries = true)
     public MealRecord addRecord(Long planId, Long userId, String description,
                                 Integer rating, String imageUrl) {
         MealPlan plan = mealPlanMapper.selectById(planId);
@@ -179,20 +188,14 @@ public class MealPlanService {
         List<PlanDish> dishes = planDishMapper.selectList(
             new LambdaQueryWrapper<PlanDish>().eq(PlanDish::getPlanId, planId)
         );
-        for (PlanDish dish : dishes) {
-            dishLibraryService.recordCheckin(userId, dish.getDishName(),
-                    plan.getMealType(), imageUrl);
-        }
+        List<String> dishNames = dishes.stream().map(PlanDish::getDishName).toList();
+        dishLibraryService.batchRecordCheckin(userId, dishNames, plan.getMealType(), imageUrl);
 
         plan.setStatus("done");
         mealPlanMapper.updateById(plan);
 
-        // 触发成就解锁检查（非阻塞，失败不影响打卡）
-        try {
-            achievementService.checkAndUnlock(userId);
-        } catch (Exception e) {
-            log.warn("成就检查失败: {}", e.getMessage());
-        }
+        // 触发成就解锁检查（异步执行，不阻塞打卡响应）
+        achievementService.checkAndUnlockAsync(userId);
 
         return record;
     }
@@ -277,13 +280,16 @@ public class MealPlanService {
     private void autoFillDishes(MealPlan plan, Long familyId, String mealType, Set<String> excludeNames) {
         int count = "breakfast".equals(mealType) ? 1 : 2;
         List<String> names = dishLibraryService.randomForFamily(familyId, mealType, count, excludeNames);
+        if (names.isEmpty()) return;
+        List<PlanDish> dishes = new ArrayList<>();
         for (int i = 0; i < names.size(); i++) {
             PlanDish dish = new PlanDish();
             dish.setPlanId(plan.getId());
             dish.setDishName(names.get(i));
             dish.setSortOrder(i);
-            planDishMapper.insert(dish);
+            dishes.add(dish);
         }
+        planDishMapper.insertBatchSomeColumn(dishes);
     }
 
 }
