@@ -11,12 +11,6 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(BusinessException.class)
-    public ApiResponse<?> handleBusiness(BusinessException e) {
-        log.warn("业务异常: {}", e.getMessage());
-        return ApiResponse.error(e.getCode(), e.getMessage());
-    }
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ApiResponse<?> handleValidation(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().stream()

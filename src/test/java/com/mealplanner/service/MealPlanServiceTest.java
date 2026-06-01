@@ -96,7 +96,6 @@ class MealPlanServiceTest {
 
         when(mealPlanMapper.selectById(1L)).thenReturn(plan);
         when(planDishMapper.delete(any(LambdaQueryWrapper.class))).thenReturn(0);
-        when(planDishMapper.insert(any(PlanDish.class))).thenReturn(1);
         when(planDishMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
 
         DishItem item = new DishItem();
@@ -107,7 +106,7 @@ class MealPlanServiceTest {
 
         assertThat(result).isNotNull();
         verify(planDishMapper).delete(any(LambdaQueryWrapper.class));
-        verify(planDishMapper).insert(any(PlanDish.class));
+        verify(planDishMapper).insertBatchSomeColumn(any(List.class));
     }
 
     @Test
@@ -163,8 +162,8 @@ class MealPlanServiceTest {
         assertThat(result.getRating()).isEqualTo(5);
         assertThat(result.getDescription()).isEqualTo("好吃");
         assertThat(plan.getStatus()).isEqualTo("done");
-        verify(dishLibraryService).recordCheckin(1L, "红烧肉", "dinner", "img.jpg");
-        verify(achievementService).checkAndUnlock(1L);
+        verify(dishLibraryService).batchRecordCheckin(1L, List.of("红烧肉"), "dinner", "img.jpg");
+        verify(achievementService).checkAndUnlockAsync(1L);
     }
 
     @Test
@@ -202,7 +201,7 @@ class MealPlanServiceTest {
         when(mealRecordMapper.insert(any(MealRecord.class))).thenReturn(1);
         when(planDishMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
         when(mealPlanMapper.updateById(any(MealPlan.class))).thenReturn(1);
-        doThrow(new RuntimeException("成就服务异常")).when(achievementService).checkAndUnlock(1L);
+        doThrow(new RuntimeException("成就服务异常")).when(achievementService).checkAndUnlockAsync(1L);
 
         MealRecord result = mealPlanService.addRecord(1L, 1L, null, 3, null);
 

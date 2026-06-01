@@ -168,14 +168,14 @@ class DishLibraryServiceTest {
     }
 
     @Test
-    void updateImage_success() {
+    void setImageUrl_success() {
         DishLibrary dish = new DishLibrary();
         dish.setId(1L);
 
         when(dishLibraryMapper.selectById(1L)).thenReturn(dish);
         when(dishLibraryMapper.updateById(any(DishLibrary.class))).thenReturn(1);
 
-        DishLibrary result = dishLibraryService.updateImage(1L, "new.jpg");
+        DishLibrary result = dishLibraryService.setImageUrl(1L, "new.jpg");
 
         assertThat(result.getImageUrl()).isEqualTo("new.jpg");
     }
@@ -189,7 +189,7 @@ class DishLibraryServiceTest {
         when(dishLibraryMapper.selectById(1L)).thenReturn(dish);
         when(dishLibraryMapper.updateById(any(DishLibrary.class))).thenReturn(1);
 
-        DishLibrary result = dishLibraryService.clearImage(1L);
+        DishLibrary result = dishLibraryService.setImageUrl(1L, null);
 
         assertThat(result.getImageUrl()).isNull();
     }

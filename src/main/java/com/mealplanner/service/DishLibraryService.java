@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -46,13 +45,6 @@ public class DishLibraryService {
     public List<String> random(Long userId, String mealType, int count) {
         List<DishLibrary> candidates = listForUser(userId, mealType);
         return weightedRandom(candidates, count);
-    }
-
-    /**
-     * 按家庭随机推荐（用于自动填充菜单）
-     */
-    public List<String> randomForFamily(Long familyId, String mealType, int count) {
-        return randomForFamily(familyId, mealType, count, Collections.emptySet());
     }
 
     /**
@@ -190,22 +182,12 @@ public class DishLibraryService {
         );
     }
 
-    /** 更新菜品图片 */
+    /** 设置或清除菜品图片（imageUrl 为 null 时清除） */
     @CacheEvict(value = "dishLibrary", allEntries = true)
-    public DishLibrary updateImage(Long id, String imageUrl) {
+    public DishLibrary setImageUrl(Long id, String imageUrl) {
         DishLibrary dish = dishLibraryMapper.selectById(id);
         if (dish == null) throw new RuntimeException("菜品不存在: " + id);
         dish.setImageUrl(imageUrl);
-        dishLibraryMapper.updateById(dish);
-        return dish;
-    }
-
-    /** 删除菜品图片 */
-    @CacheEvict(value = "dishLibrary", allEntries = true)
-    public DishLibrary clearImage(Long id) {
-        DishLibrary dish = dishLibraryMapper.selectById(id);
-        if (dish == null) throw new RuntimeException("菜品不存在: " + id);
-        dish.setImageUrl(null);
         dishLibraryMapper.updateById(dish);
         return dish;
     }

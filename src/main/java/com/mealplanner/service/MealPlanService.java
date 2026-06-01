@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -111,22 +110,25 @@ public class MealPlanService {
     /** 手动创建单餐空计划（无初始菜品，幂等：已存在则直接返回） */
     @Transactional
     public MealPlan createSinglePlan(Long familyId, Long userId, LocalDate date, String mealType) {
+        // 先查询是否已存在，避免使用异常控制流
+        MealPlan existing = mealPlanMapper.selectOne(
+            new LambdaQueryWrapper<MealPlan>()
+                .eq(MealPlan::getFamilyId, familyId)
+                .eq(MealPlan::getDate, date)
+                .eq(MealPlan::getMealType, mealType)
+        );
+        if (existing != null) {
+            attachDishes(List.of(existing));
+            return existing;
+        }
+
         MealPlan plan = new MealPlan();
         plan.setFamilyId(familyId);
         plan.setUserId(userId);
         plan.setDate(date);
         plan.setMealType(mealType);
         plan.setStatus("planned");
-        try {
-            mealPlanMapper.insert(plan);
-        } catch (DuplicateKeyException e) {
-            plan = mealPlanMapper.selectOne(
-                new LambdaQueryWrapper<MealPlan>()
-                    .eq(MealPlan::getFamilyId, familyId)
-                    .eq(MealPlan::getDate, date)
-                    .eq(MealPlan::getMealType, mealType)
-            );
-        }
+        mealPlanMapper.insert(plan);
         attachDishes(List.of(plan));
         return plan;
     }
@@ -195,7 +197,11 @@ public class MealPlanService {
         mealPlanMapper.updateById(plan);
 
         // 触发成就解锁检查（异步执行，不阻塞打卡响应）
-        achievementService.checkAndUnlockAsync(userId);
+        try {
+            achievementService.checkAndUnlockAsync(userId);
+        } catch (Exception e) {
+            log.warn("成就解锁检查失败，不影响打卡: userId={}", userId, e);
+        }
 
         return record;
     }

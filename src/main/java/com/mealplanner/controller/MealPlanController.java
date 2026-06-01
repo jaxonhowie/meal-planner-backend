@@ -10,9 +10,9 @@ import com.mealplanner.entity.User;
 import com.mealplanner.mapper.UserMapper;
 import com.mealplanner.service.MealPlanService;
 import com.mealplanner.service.StatsService;
+import com.mealplanner.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -29,12 +29,8 @@ public class MealPlanController {
     private final StatsService statsService;
     private final UserMapper userMapper;
 
-    private Long uid() {
-        return (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-    }
-
     private Long familyId() {
-        User user = userMapper.selectById(uid());
+        User user = userMapper.selectById(SecurityUtils.uid());
         if (user == null || user.getFamilyId() == null)
             throw new RuntimeException("请先加入或创建家庭");
         return user.getFamilyId();
@@ -52,7 +48,7 @@ public class MealPlanController {
     public ApiResponse<List<MealPlan>> generate(@RequestBody Map<String, String> body) {
         LocalDate date = body.containsKey("date")
             ? LocalDate.parse(body.get("date")) : LocalDate.now();
-        return ApiResponse.success(mealPlanService.generateDailyPlan(familyId(), uid(), date));
+        return ApiResponse.success(mealPlanService.generateDailyPlan(familyId(), SecurityUtils.uid(), date));
     }
 
     @PostMapping("/meal/add-single")
@@ -60,7 +56,7 @@ public class MealPlanController {
         LocalDate date = body.containsKey("date")
             ? LocalDate.parse(body.get("date")) : LocalDate.now();
         String mealType = body.get("mealType");
-        return ApiResponse.success(mealPlanService.createSinglePlan(familyId(), uid(), date, mealType));
+        return ApiResponse.success(mealPlanService.createSinglePlan(familyId(), SecurityUtils.uid(), date, mealType));
     }
 
     @PutMapping("/meal/{id}/dishes")
@@ -84,7 +80,7 @@ public class MealPlanController {
         Integer rating = body.containsKey("rating")
             ? Integer.parseInt(body.get("rating").toString()) : 3;
         String imageUrl = (String) body.getOrDefault("imageUrl", null);
-        return ApiResponse.success(mealPlanService.addRecord(planId, uid(), desc, rating, imageUrl));
+        return ApiResponse.success(mealPlanService.addRecord(planId, SecurityUtils.uid(), desc, rating, imageUrl));
     }
 
     @GetMapping("/record/plan/{planId}")
@@ -100,7 +96,7 @@ public class MealPlanController {
         Integer rating = body.containsKey("rating")
             ? Integer.parseInt(body.get("rating").toString()) : null;
         String imageUrl = (String) body.getOrDefault("imageUrl", null);
-        return ApiResponse.success(mealPlanService.updateRecord(id, uid(), desc, rating, imageUrl));
+        return ApiResponse.success(mealPlanService.updateRecord(id, SecurityUtils.uid(), desc, rating, imageUrl));
     }
 
     @GetMapping("/record")
@@ -127,7 +123,7 @@ public class MealPlanController {
 
     @GetMapping("/stats")
     public ApiResponse<StatsResponse> getStats() {
-        return ApiResponse.success(statsService.getStats(uid()));
+        return ApiResponse.success(statsService.getStats(SecurityUtils.uid()));
     }
 
     @GetMapping("/stats/family-leaderboard")

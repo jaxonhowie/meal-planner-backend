@@ -3,8 +3,8 @@ package com.mealplanner.controller;
 import com.mealplanner.dto.ApiResponse;
 import com.mealplanner.entity.DishLibrary;
 import com.mealplanner.service.DishLibraryService;
+import com.mealplanner.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,26 +18,22 @@ public class DishLibraryController {
 
     private final DishLibraryService dishLibraryService;
 
-    private Long uid() {
-        return (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-    }
-
     @GetMapping
     public ApiResponse<List<DishLibrary>> list(@RequestParam(required = false) String mealType) {
-        return ApiResponse.success(dishLibraryService.listForUser(uid(), mealType));
+        return ApiResponse.success(dishLibraryService.listForUser(SecurityUtils.uid(), mealType));
     }
 
     @GetMapping("/random")
     public ApiResponse<List<String>> random(
             @RequestParam(required = false) String mealType,
             @RequestParam(defaultValue = "2") int count) {
-        return ApiResponse.success(dishLibraryService.random(uid(), mealType, count));
+        return ApiResponse.success(dishLibraryService.random(SecurityUtils.uid(), mealType, count));
     }
 
     @PostMapping
     public ApiResponse<DishLibrary> add(@RequestBody Map<String, String> body) {
         return ApiResponse.success(
-            dishLibraryService.add(uid(), body.get("name"), body.get("mealType"), body.get("tags"))
+            dishLibraryService.add(SecurityUtils.uid(), body.get("name"), body.get("mealType"), body.get("tags"))
         );
     }
 
@@ -50,7 +46,7 @@ public class DishLibraryController {
 
     @DeleteMapping("/{id}")
     public ApiResponse<?> delete(@PathVariable Long id) {
-        dishLibraryService.delete(uid(), id);
+        dishLibraryService.delete(SecurityUtils.uid(), id);
         return ApiResponse.success();
     }
 
@@ -58,12 +54,12 @@ public class DishLibraryController {
     public ApiResponse<DishLibrary> updateImage(
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
-        return ApiResponse.success(dishLibraryService.updateImage(id, body.get("imageUrl")));
+        return ApiResponse.success(dishLibraryService.setImageUrl(id, body.get("imageUrl")));
     }
 
     @DeleteMapping("/{id}/image")
     public ApiResponse<DishLibrary> clearImage(@PathVariable Long id) {
-        return ApiResponse.success(dishLibraryService.clearImage(id));
+        return ApiResponse.success(dishLibraryService.setImageUrl(id, null));
     }
 
     @PutMapping("/{id}/favorite")

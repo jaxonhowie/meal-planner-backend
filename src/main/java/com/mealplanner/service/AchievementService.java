@@ -37,23 +37,11 @@ public class AchievementService {
             new LambdaQueryWrapper<UserAchievement>().eq(UserAchievement::getUserId, userId)
         ).stream().collect(Collectors.toMap(UserAchievement::getAchievementId, ua -> ua));
 
-        // Pre-compute values needed for progress
-        int totalCheckins = statsMapper.countCheckins(userId);
-        int dishKinds = statsMapper.countDishKinds(userId);
-        int currentStreak = computeCurrentStreak(userId);
-        boolean hasFiveStar = hasRating(userId, 5);
-        boolean allMealsDay = hasAllMealsInOneDay(userId);
+        UserStats stats = computeUserStats(userId);
 
         List<AchievementDto> result = new ArrayList<>();
         for (Achievement a : all) {
-            AchievementDto dto = new AchievementDto();
-            dto.setId(a.getId());
-            dto.setCode(a.getCode());
-            dto.setName(a.getName());
-            dto.setDescription(a.getDescription());
-            dto.setIcon(a.getIcon());
-            dto.setCategory(a.getCategory());
-            dto.setThreshold(a.getThreshold());
+            AchievementDto dto = toDto(a);
 
             UserAchievement ua = unlocked.get(a.getId());
             if (ua != null) {
@@ -62,7 +50,7 @@ public class AchievementService {
                 dto.setCurrentValue(a.getThreshold());
             } else {
                 dto.setUnlocked(false);
-                dto.setCurrentValue(computeProgress(a.getCode(), totalCheckins, dishKinds, currentStreak, hasFiveStar, allMealsDay));
+                dto.setCurrentValue(computeProgress(a.getCode(), stats));
             }
             result.add(dto);
         }
@@ -78,30 +66,19 @@ public class AchievementService {
             new LambdaQueryWrapper<UserAchievement>().eq(UserAchievement::getUserId, userId)
         ).stream().map(UserAchievement::getAchievementId).collect(Collectors.toSet());
 
-        int totalCheckins = statsMapper.countCheckins(userId);
-        int dishKinds = statsMapper.countDishKinds(userId);
-        int currentStreak = computeCurrentStreak(userId);
-        boolean hasFiveStar = hasRating(userId, 5);
-        boolean allMealsDay = hasAllMealsInOneDay(userId);
+        UserStats stats = computeUserStats(userId);
 
         List<AchievementDto> newlyUnlocked = new ArrayList<>();
         for (Achievement a : all) {
             if (alreadyUnlocked.contains(a.getId())) continue;
-            if (shouldUnlock(a.getCode(), totalCheckins, dishKinds, currentStreak, hasFiveStar, allMealsDay)) {
+            if (shouldUnlock(a.getCode(), stats)) {
                 UserAchievement ua = new UserAchievement();
                 ua.setUserId(userId);
                 ua.setAchievementId(a.getId());
                 ua.setUnlockedAt(LocalDateTime.now());
                 userAchievementMapper.insert(ua);
 
-                AchievementDto dto = new AchievementDto();
-                dto.setId(a.getId());
-                dto.setCode(a.getCode());
-                dto.setName(a.getName());
-                dto.setDescription(a.getDescription());
-                dto.setIcon(a.getIcon());
-                dto.setCategory(a.getCategory());
-                dto.setThreshold(a.getThreshold());
+                AchievementDto dto = toDto(a);
                 dto.setUnlocked(true);
                 dto.setUnlockedAt(ua.getUnlockedAt());
                 dto.setCurrentValue(a.getThreshold());
@@ -123,40 +100,63 @@ public class AchievementService {
         }
     }
 
-    private boolean shouldUnlock(String code, int totalCheckins, int dishKinds,
-                                  int currentStreak, boolean hasFiveStar, boolean allMealsDay) {
+    private AchievementDto toDto(Achievement a) {
+        AchievementDto dto = new AchievementDto();
+        dto.setId(a.getId());
+        dto.setCode(a.getCode());
+        dto.setName(a.getName());
+        dto.setDescription(a.getDescription());
+        dto.setIcon(a.getIcon());
+        dto.setCategory(a.getCategory());
+        dto.setThreshold(a.getThreshold());
+        return dto;
+    }
+
+    private UserStats computeUserStats(Long userId) {
+        return new UserStats(
+            statsMapper.countCheckins(userId),
+            statsMapper.countDishKinds(userId),
+            computeCurrentStreak(userId),
+            hasRating(userId, 5),
+            hasAllMealsInOneDay(userId)
+        );
+    }
+
+    private record UserStats(int totalCheckins, int dishKinds, int currentStreak,
+                              boolean hasFiveStar, boolean allMealsDay) {}
+
+    private boolean shouldUnlock(String code, UserStats stats) {
         return switch (code) {
-            case "first_checkin" -> totalCheckins >= 1;
-            case "streak_7"      -> currentStreak >= 7;
-            case "streak_30"     -> currentStreak >= 30;
-            case "streak_100"    -> currentStreak >= 100;
-            case "variety_10"    -> dishKinds >= 10;
-            case "variety_30"    -> dishKinds >= 30;
-            case "variety_50"    -> dishKinds >= 50;
-            case "rating_5star"  -> hasFiveStar;
-            case "checkin_50"    -> totalCheckins >= 50;
-            case "checkin_100"   -> totalCheckins >= 100;
-            case "checkin_200"   -> totalCheckins >= 200;
-            case "all_meals_day" -> allMealsDay;
+            case "first_checkin" -> stats.totalCheckins() >= 1;
+            case "streak_7"      -> stats.currentStreak() >= 7;
+            case "streak_30"     -> stats.currentStreak() >= 30;
+            case "streak_100"    -> stats.currentStreak() >= 100;
+            case "variety_10"    -> stats.dishKinds() >= 10;
+            case "variety_30"    -> stats.dishKinds() >= 30;
+            case "variety_50"    -> stats.dishKinds() >= 50;
+            case "rating_5star"  -> stats.hasFiveStar();
+            case "checkin_50"    -> stats.totalCheckins() >= 50;
+            case "checkin_100"   -> stats.totalCheckins() >= 100;
+            case "checkin_200"   -> stats.totalCheckins() >= 200;
+            case "all_meals_day" -> stats.allMealsDay();
             default -> false;
         };
     }
 
-    private int computeProgress(String code, int totalCheckins, int dishKinds,
-                                 int currentStreak, boolean hasFiveStar, boolean allMealsDay) {
+    private int computeProgress(String code, UserStats stats) {
         return switch (code) {
-            case "first_checkin" -> Math.min(totalCheckins, 1);
-            case "streak_7"      -> Math.min(currentStreak, 7);
-            case "streak_30"     -> Math.min(currentStreak, 30);
-            case "streak_100"    -> Math.min(currentStreak, 100);
-            case "variety_10"    -> Math.min(dishKinds, 10);
-            case "variety_30"    -> Math.min(dishKinds, 30);
-            case "variety_50"    -> Math.min(dishKinds, 50);
-            case "rating_5star"  -> hasFiveStar ? 1 : 0;
-            case "checkin_50"    -> Math.min(totalCheckins, 50);
-            case "checkin_100"   -> Math.min(totalCheckins, 100);
-            case "checkin_200"   -> Math.min(totalCheckins, 200);
-            case "all_meals_day" -> allMealsDay ? 1 : 0;
+            case "first_checkin" -> Math.min(stats.totalCheckins(), 1);
+            case "streak_7"      -> Math.min(stats.currentStreak(), 7);
+            case "streak_30"     -> Math.min(stats.currentStreak(), 30);
+            case "streak_100"    -> Math.min(stats.currentStreak(), 100);
+            case "variety_10"    -> Math.min(stats.dishKinds(), 10);
+            case "variety_30"    -> Math.min(stats.dishKinds(), 30);
+            case "variety_50"    -> Math.min(stats.dishKinds(), 50);
+            case "rating_5star"  -> stats.hasFiveStar() ? 1 : 0;
+            case "checkin_50"    -> Math.min(stats.totalCheckins(), 50);
+            case "checkin_100"   -> Math.min(stats.totalCheckins(), 100);
+            case "checkin_200"   -> Math.min(stats.totalCheckins(), 200);
+            case "all_meals_day" -> stats.allMealsDay() ? 1 : 0;
             default -> 0;
         };
     }

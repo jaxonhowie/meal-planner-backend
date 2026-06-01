@@ -3,8 +3,8 @@ package com.mealplanner.controller;
 import com.mealplanner.dto.AchievementDto;
 import com.mealplanner.dto.ApiResponse;
 import com.mealplanner.service.AchievementService;
+import com.mealplanner.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,17 +17,13 @@ public class AchievementController {
 
     private final AchievementService achievementService;
 
-    private Long uid() {
-        return (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-    }
-
     @GetMapping
     public ApiResponse<List<AchievementDto>> getAchievements() {
-        return ApiResponse.success(achievementService.getUserAchievements(uid()));
+        return ApiResponse.success(achievementService.getUserAchievements(SecurityUtils.uid()));
     }
 
     @PostMapping("/check")
     public ApiResponse<List<AchievementDto>> checkAchievements() {
-        return ApiResponse.success(achievementService.checkAndUnlock(uid()));
+        return ApiResponse.success(achievementService.checkAndUnlock(SecurityUtils.uid()));
     }
 }
