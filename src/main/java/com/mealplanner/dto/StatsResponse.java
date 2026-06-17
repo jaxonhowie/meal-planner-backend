@@ -8,7 +8,7 @@ import java.util.List;
 public class StatsResponse {
     private int totalCheckins;
     private int totalDishKinds;
-    private double overallAvgRating;
+    private Double overallAvgRating;
     private List<DishStat> topByRating;
     private List<DishStat> topByFrequency;
     /** 近30天每日打卡数量，用于历史页趋势图 */

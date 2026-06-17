@@ -7,10 +7,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import com.mealplanner.dto.DayCount;
+import com.mealplanner.dto.WeeklyRating;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -28,10 +32,10 @@ public class StatsService {
         stats.setOverallAvgRating(statsMapper.overallAvgRating(userId));
         stats.setTopByRating(statsMapper.topByRating(userId));
         stats.setTopByFrequency(statsMapper.topByFrequency(userId));
-        stats.setCheckinTrend(statsMapper.checkinTrendLast30Days(userId));
-        stats.setHeatmapData(statsMapper.checkinHeatmap91Days(userId));
+        stats.setCheckinTrend(fillDayCount(statsMapper.checkinTrendLast30Days(userId), 30));
+        stats.setHeatmapData(fillDayCount(statsMapper.checkinHeatmap91Days(userId), 91));
         stats.setMealTypeDistribution(statsMapper.mealTypeDistribution(userId));
-        stats.setRatingTrend(statsMapper.ratingTrendLast8Weeks(userId));
+        stats.setRatingTrend(fillWeeklyRating(statsMapper.ratingTrendLast8Weeks(userId), 8));
 
         List<String> allDates = statsMapper.allCheckinDates(userId);
         int[] streaks = computeStreaks(allDates);
@@ -39,6 +43,44 @@ public class StatsService {
         stats.setBestStreak(streaks[1]);
 
         return stats;
+    }
+
+    private List<DayCount> fillDayCount(List<DayCount> sparse, int days) {
+        Map<String, Integer> lookup = sparse.stream()
+                .collect(Collectors.toMap(DayCount::getDate, DayCount::getCount));
+        LocalDate today = LocalDate.now();
+        List<DayCount> dense = new ArrayList<>(days);
+        for (int i = days - 1; i >= 0; i--) {
+            String dateStr = today.minusDays(i).toString();
+            DayCount dc = new DayCount();
+            dc.setDate(dateStr);
+            dc.setCount(lookup.getOrDefault(dateStr, 0));
+            dense.add(dc);
+        }
+        return dense;
+    }
+
+    private List<WeeklyRating> fillWeeklyRating(List<WeeklyRating> sparse, int weeks) {
+        Map<String, WeeklyRating> lookup = sparse.stream()
+                .collect(Collectors.toMap(WeeklyRating::getWeekLabel, wr -> wr));
+        LocalDate today = LocalDate.now();
+        // 与 MySQL WEEKDAY() 对齐：DayOfWeek.getValue() 1=Monday … 7=Sunday
+        LocalDate thisMonday = today.minusDays(today.getDayOfWeek().getValue() - 1);
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM/dd");
+        List<WeeklyRating> dense = new ArrayList<>(weeks);
+        for (int i = weeks - 1; i >= 0; i--) {
+            String label = thisMonday.minusWeeks(i).format(fmt);
+            dense.add(lookup.getOrDefault(label, emptyWeek(label)));
+        }
+        return dense;
+    }
+
+    private WeeklyRating emptyWeek(String label) {
+        WeeklyRating wr = new WeeklyRating();
+        wr.setWeekLabel(label);
+        wr.setAvgRating(0.0);
+        wr.setCheckinCount(0);
+        return wr;
     }
 
     /**

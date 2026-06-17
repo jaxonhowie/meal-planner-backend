@@ -21,13 +21,13 @@ public interface StatsMapper {
     int countDishKinds(@Param("userId") Long userId);
 
     @Select("SELECT ROUND(AVG(rating), 1) FROM meal_record WHERE user_id = #{userId}")
-    double overallAvgRating(@Param("userId") Long userId);
+    Double overallAvgRating(@Param("userId") Long userId);
 
     /**
      * 按平均评分取 Top5（通过 plan_dish → meal_plan → meal_record 关联）
      */
     @Select("SELECT pd.dish_name AS dishName, " +
-            "AVG(mr.rating) AS avgRating, COUNT(*) AS checkinCount " +
+            "AVG(mr.rating) AS avgRating, COUNT(DISTINCT mr.id) AS checkinCount " +
             "FROM meal_record mr " +
             "JOIN meal_plan mp ON mr.plan_id = mp.id " +
             "JOIN plan_dish pd ON pd.plan_id = mp.id " +
@@ -44,7 +44,7 @@ public interface StatsMapper {
             "FROM dish_library " +
             "WHERE user_id = #{userId} AND checkin_count > 0 " +
             "ORDER BY checkin_count DESC " +
-            "LIMIT 5")
+            "LIMIT 8")
     List<DishStat> topByFrequency(@Param("userId") Long userId);
 
     /**
